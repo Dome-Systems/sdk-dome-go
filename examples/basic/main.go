@@ -29,7 +29,7 @@ func main() {
 	if err := dome.Init(opts...); err != nil {
 		log.Fatalf("dome.Init: %v", err)
 	}
-	defer dome.Shutdown(context.Background())
+	defer func() { _ = dome.Shutdown(context.Background()) }()
 
 	// Register the agent. Safe to call on every startup (idempotent).
 	agent, err := dome.Register(context.Background(), dome.RegisterOptions{

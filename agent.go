@@ -2,10 +2,16 @@ package dome
 
 import (
 	"context"
+	"time"
 
 	"connectrpc.com/connect"
 
 	apiv1 "github.com/Dome-Systems/sdk-dome-go/internal/api"
+)
+
+const (
+	registrationRetryBase = 5 * time.Second
+	registrationRetryMax  = 2 * time.Minute
 )
 
 // AgentInfo holds the result of a successful registration.
@@ -35,11 +41,40 @@ type RegisterOptions struct {
 //
 // On success, Register starts a background heartbeat goroutine (unless
 // WithoutHeartbeat was used).
+//
+// If WithGracefulDegradation was set and registration fails (e.g. API
+// unreachable), Register logs a warning and retries in the background instead
+// of returning an error. AgentID returns empty until background registration
+// succeeds.
 func (c *Client) Register(ctx context.Context, opts RegisterOptions) (*AgentInfo, error) {
 	if opts.Name == "" {
 		return nil, errorf("agent name is required")
 	}
 
+	info, err := c.doRegister(ctx, opts)
+	if err != nil {
+		if c.config.gracefulDegradation {
+			c.logger.Warn("registration failed, retrying in background",
+				"agent_name", opts.Name,
+				"error", err,
+			)
+			c.startBackgroundRegistration(opts)
+			return &AgentInfo{Name: opts.Name}, nil
+		}
+		return nil, err
+	}
+
+	c.setAgentID(info.ID)
+
+	if !c.config.disableHeartbeat {
+		c.startHeartbeat(info.ID)
+	}
+
+	return info, nil
+}
+
+// doRegister performs the actual registration RPC call with idempotency handling.
+func (c *Client) doRegister(ctx context.Context, opts RegisterOptions) (*AgentInfo, error) {
 	req := &apiv1.RegisterAgentRequest{
 		Name:         opts.Name,
 		Capabilities: opts.Capabilities,
@@ -59,15 +94,57 @@ func (c *Client) Register(ctx context.Context, opts RegisterOptions) (*AgentInfo
 		return nil, errorf("register agent: %w", err)
 	}
 
-	info := agentFromProto(resp.Msg.GetAgent(), resp.Msg.GetToken())
+	return agentFromProto(resp.Msg.GetAgent(), resp.Msg.GetToken()), nil
+}
 
-	c.setAgentID(info.ID)
+// startBackgroundRegistration spawns a goroutine that retries registration
+// with exponential backoff. On success, it sets the agent ID and transitions
+// to the heartbeat loop within the same goroutine (avoiding a deadlock with
+// startHeartbeat which would try to cancel/wait on itself).
+func (c *Client) startBackgroundRegistration(opts RegisterOptions) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if !c.config.disableHeartbeat {
-		c.startHeartbeat(info.ID)
+	if c.cancel != nil {
+		c.cancel()
+		<-c.stopped
 	}
 
-	return info, nil
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancel = cancel
+	c.stopped = make(chan struct{})
+
+	go func() {
+		defer close(c.stopped)
+
+		err := retryWithBackoff(ctx, func(retryCtx context.Context) error {
+			info, regErr := c.doRegister(retryCtx, opts)
+			if regErr != nil {
+				c.logger.Debug("background registration retry failed",
+					"agent_name", opts.Name,
+					"error", regErr,
+				)
+				return regErr
+			}
+
+			c.logger.Info("background registration succeeded",
+				"agent_id", info.ID,
+				"agent_name", opts.Name,
+			)
+			c.setAgentID(info.ID)
+			return nil
+		}, registrationRetryBase, registrationRetryMax)
+
+		if err != nil {
+			c.logger.Debug("background registration canceled", "error", err)
+			return
+		}
+
+		// Registration succeeded — run heartbeat in this goroutine.
+		if !c.config.disableHeartbeat {
+			c.runHeartbeat(ctx, c.AgentID())
+		}
+	}()
 }
 
 // findExistingAgent looks up an agent by name via ListAgents.
@@ -81,14 +158,7 @@ func (c *Client) findExistingAgent(ctx context.Context, name string) (*AgentInfo
 
 	for _, a := range resp.Msg.GetAgents() {
 		if a.GetName() == name {
-			info := agentFromProto(a, "")
-			c.setAgentID(info.ID)
-
-			if !c.config.disableHeartbeat {
-				c.startHeartbeat(info.ID)
-			}
-
-			return info, nil
+			return agentFromProto(a, ""), nil
 		}
 	}
 

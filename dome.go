@@ -47,7 +47,7 @@ func Init(opts ...Option) error {
 	defer globalMu.Unlock()
 
 	if globalClient != nil {
-		globalClient.Close()
+		_ = globalClient.Close()
 		globalClient = nil
 	}
 

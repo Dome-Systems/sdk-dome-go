@@ -9,6 +9,8 @@ import (
 	apiv1 "github.com/Dome-Systems/sdk-dome-go/internal/api"
 )
 
+const maxHeartbeatInterval = 5 * time.Minute
+
 // startHeartbeat launches a background goroutine that sends periodic heartbeats.
 func (c *Client) startHeartbeat(agentID string) {
 	c.mu.Lock()
@@ -24,35 +26,54 @@ func (c *Client) startHeartbeat(agentID string) {
 	c.cancel = cancel
 	c.stopped = make(chan struct{})
 
-	go c.heartbeatLoop(ctx, agentID)
+	go func() {
+		defer close(c.stopped)
+		c.runHeartbeat(ctx, agentID)
+	}()
 }
 
-// heartbeatLoop sends heartbeats at the configured interval until the context is canceled.
-func (c *Client) heartbeatLoop(ctx context.Context, agentID string) {
-	defer close(c.stopped)
-
+// runHeartbeat sends heartbeats at the configured interval until the context is
+// canceled. On consecutive failures, the interval backs off exponentially up to
+// maxHeartbeatInterval. On success, the interval resets to the configured value.
+//
+// This is the pure logic — it does not manage c.cancel/c.stopped. Callers are
+// responsible for goroutine lifecycle.
+func (c *Client) runHeartbeat(ctx context.Context, agentID string) {
 	// Send initial heartbeat immediately.
 	c.sendHeartbeat(ctx, agentID)
 
-	ticker := time.NewTicker(c.config.heartbeatInterval)
-	defer ticker.Stop()
+	baseInterval := c.config.heartbeatInterval
+	currentInterval := baseInterval
+	consecutiveFailures := 0
+
+	timer := time.NewTimer(currentInterval)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			c.sendHeartbeat(ctx, agentID)
+		case <-timer.C:
+			if c.sendHeartbeat(ctx, agentID) {
+				consecutiveFailures = 0
+				currentInterval = baseInterval
+			} else {
+				consecutiveFailures++
+				currentInterval = backoff(baseInterval, maxHeartbeatInterval, consecutiveFailures)
+			}
+			timer.Reset(currentInterval)
 		}
 	}
 }
 
-// sendHeartbeat sends a single heartbeat RPC. Failures are logged but do not crash.
-func (c *Client) sendHeartbeat(ctx context.Context, agentID string) {
+// sendHeartbeat sends a single heartbeat RPC. Returns true on success.
+func (c *Client) sendHeartbeat(ctx context.Context, agentID string) bool {
 	_, err := c.rpc.Heartbeat(ctx, connect.NewRequest(&apiv1.HeartbeatRequest{
 		AgentId: agentID,
 	}))
 	if err != nil {
 		c.logger.Warn("heartbeat failed", "agent_id", agentID, "error", err)
+		return false
 	}
+	return true
 }

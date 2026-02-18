@@ -159,7 +159,7 @@ func (t *Transport) vaultLogin(path, body string) error {
 	if err != nil {
 		return fmt.Errorf("vault login request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -194,7 +194,7 @@ func (t *Transport) requestOIDCToken() (string, time.Time, error) {
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("vault OIDC token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
