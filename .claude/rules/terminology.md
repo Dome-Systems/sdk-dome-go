@@ -19,7 +19,7 @@ description: Locked terminology and positioning phrases for all Dome Platform co
 | Evidence verification | ✅ | ❌ Claim validation |
 | Precedent graduation | ✅ | ❌ Rule promotion, policy learning |
 
-**See:** [docs/internal/reference/REF-glossary.md](docs/internal/reference/REF-glossary.md) for complete terminology
+**See:** [docs/reference/REF-glossary.md](https://github.com/Dome-Systems/prod-platform/blob/main/docs/reference/REF-glossary.md) for complete terminology
 
 # Positioning (Locked)
 

@@ -52,11 +52,11 @@ No other dependencies. No zerolog, no zap, no logrus. Logging uses `log/slog` (s
 ## Design Spec
 
 The full SDK design specification lives in **prod-platform**:
-[`docs/internal/specs/SPEC-sdk-design.md`](https://github.com/Dome-Systems/prod-platform/blob/main/docs/internal/specs/SPEC-sdk-design.md)
+[`docs/specs/SPEC-sdk-design.md`](https://github.com/Dome-Systems/prod-platform/blob/main/docs/specs/SPEC-sdk-design.md)
 
 Covers: public API surface, enforcement progression (Phase 1-4), credential flow, Vault OIDC auth, multi-language strategy, dependency policy, release plan.
 
-Related: [ADR-009 — SDK-First Enforcement](https://github.com/Dome-Systems/prod-platform/blob/main/docs/internal/implementation/adrs/ADR-009-sdk-first-enforcement.md), [UJ-2 — Register My Agent](https://github.com/Dome-Systems/prod-platform/blob/main/docs/internal/use-cases/UJ-2-register-agent-sdk.md)
+Related: [ADR-009 — SDK-First Enforcement](https://github.com/Dome-Systems/prod-platform/blob/main/docs/implementation/adrs/ADR-009-sdk-first-enforcement.md), [UJ-2 — Register My Agent](https://github.com/Dome-Systems/prod-platform/blob/main/docs/use-cases/UJ-2-register-agent-sdk.md)
 
 ## Architecture
 
