@@ -24,7 +24,7 @@ func TestHeartbeat_SendsOnInterval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	_, err = client.Register(context.Background(), dome.RegisterOptions{
 		Name: "heartbeat-interval-agent",
@@ -108,7 +108,7 @@ func TestHeartbeat_BacksOffOnFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	_, err = client.Register(context.Background(), dome.RegisterOptions{
 		Name: "backoff-agent",
@@ -164,7 +164,7 @@ func TestHeartbeat_DisabledWithOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	_, err = client.Register(context.Background(), dome.RegisterOptions{
 		Name: "no-heartbeat-agent",

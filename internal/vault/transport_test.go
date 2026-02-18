@@ -21,7 +21,7 @@ func TestTransport_AppRoleLogin_OIDCToken(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/auth/approle/login":
 			loginReceived = true
-			json.NewEncoder(w).Encode(authResponse{
+			_ = json.NewEncoder(w).Encode(authResponse{
 				Auth: struct {
 					ClientToken   string `json:"client_token"`
 					LeaseDuration int    `json:"lease_duration"`
@@ -35,7 +35,7 @@ func TestTransport_AppRoleLogin_OIDCToken(t *testing.T) {
 			if r.Header.Get("X-Vault-Token") != "vault-token-abc" {
 				t.Errorf("OIDC request missing vault token, got %q", r.Header.Get("X-Vault-Token"))
 			}
-			json.NewEncoder(w).Encode(oidcResponse{
+			_ = json.NewEncoder(w).Encode(oidcResponse{
 				Data: struct {
 					Token string `json:"token"`
 					TTL   int    `json:"ttl"`
@@ -72,7 +72,7 @@ func TestTransport_AppRoleLogin_OIDCToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if !loginReceived {
 		t.Error("Vault AppRole login was not called")
@@ -94,7 +94,7 @@ func TestTransport_KubernetesLogin(t *testing.T) {
 			body := make([]byte, 1024)
 			n, _ := r.Body.Read(body)
 			loginBody = string(body[:n])
-			json.NewEncoder(w).Encode(authResponse{
+			_ = json.NewEncoder(w).Encode(authResponse{
 				Auth: struct {
 					ClientToken   string `json:"client_token"`
 					LeaseDuration int    `json:"lease_duration"`
@@ -104,7 +104,7 @@ func TestTransport_KubernetesLogin(t *testing.T) {
 				},
 			})
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/identity/oidc/token/"):
-			json.NewEncoder(w).Encode(oidcResponse{
+			_ = json.NewEncoder(w).Encode(oidcResponse{
 				Data: struct {
 					Token string `json:"token"`
 					TTL   int    `json:"ttl"`
@@ -140,7 +140,7 @@ func TestTransport_KubernetesLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if !strings.Contains(loginBody, `"jwt":"fake-sa-jwt-token"`) {
 		t.Errorf("K8s login body should contain SA JWT, got: %s", loginBody)
@@ -158,7 +158,7 @@ func TestTransport_CachesToken(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/auth/approle/login":
 			loginCount++
-			json.NewEncoder(w).Encode(authResponse{
+			_ = json.NewEncoder(w).Encode(authResponse{
 				Auth: struct {
 					ClientToken   string `json:"client_token"`
 					LeaseDuration int    `json:"lease_duration"`
@@ -169,7 +169,7 @@ func TestTransport_CachesToken(t *testing.T) {
 			})
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/identity/oidc/token/"):
 			oidcCount++
-			json.NewEncoder(w).Encode(oidcResponse{
+			_ = json.NewEncoder(w).Encode(oidcResponse{
 				Data: struct {
 					Token string `json:"token"`
 					TTL   int    `json:"ttl"`
@@ -206,7 +206,7 @@ func TestTransport_CachesToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("request %d failed: %v", i, err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	if loginCount != 1 {
@@ -223,7 +223,7 @@ func TestTransport_RefreshesExpiredToken(t *testing.T) {
 	vaultSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/auth/approle/login":
-			json.NewEncoder(w).Encode(authResponse{
+			_ = json.NewEncoder(w).Encode(authResponse{
 				Auth: struct {
 					ClientToken   string `json:"client_token"`
 					LeaseDuration int    `json:"lease_duration"`
@@ -234,7 +234,7 @@ func TestTransport_RefreshesExpiredToken(t *testing.T) {
 			})
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/identity/oidc/token/"):
 			oidcCount++
-			json.NewEncoder(w).Encode(oidcResponse{
+			_ = json.NewEncoder(w).Encode(oidcResponse{
 				Data: struct {
 					Token string `json:"token"`
 					TTL   int    `json:"ttl"`
@@ -270,7 +270,7 @@ func TestTransport_RefreshesExpiredToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request 1 failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Force expiry.
 	transport.Mu.Lock()
@@ -282,7 +282,7 @@ func TestTransport_RefreshesExpiredToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request 2 failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if oidcCount != 2 {
 		t.Errorf("OIDC token count = %d, want 2 (should refresh after expiry)", oidcCount)
@@ -320,13 +320,13 @@ func TestTransport_SkipsExistingAuthHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestTransport_LoginFailure(t *testing.T) {
 	vaultSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"errors":["permission denied"]}`))
+		_, _ = w.Write([]byte(`{"errors":["permission denied"]}`))
 	}))
 	defer vaultSrv.Close()
 

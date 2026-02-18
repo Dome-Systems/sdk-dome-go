@@ -103,7 +103,7 @@ func TestNewClient_AcceptsExplicitKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 }
 
 func TestNewClient_AcceptsEnvKey(t *testing.T) {
@@ -115,7 +115,7 @@ func TestNewClient_AcceptsEnvKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 }
 
 func TestNewClient_FallsBackToDomeToken(t *testing.T) {
@@ -127,7 +127,7 @@ func TestNewClient_FallsBackToDomeToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 }
 
 func TestRegister_Success(t *testing.T) {
@@ -141,7 +141,7 @@ func TestRegister_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	info, err := client.Register(context.Background(), dome.RegisterOptions{
 		Name: "test-agent",
@@ -172,7 +172,7 @@ func TestRegister_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	info1, err := client.Register(context.Background(), dome.RegisterOptions{
 		Name: "idempotent-agent",
@@ -204,7 +204,7 @@ func TestRegister_MissingName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	_, err = client.Register(context.Background(), dome.RegisterOptions{})
 	if err == nil {
@@ -248,7 +248,7 @@ func TestCheck_ReturnsAllowed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	decision, err := client.Check(context.Background(), dome.CheckRequest{
 		Action:   "read",
@@ -273,7 +273,7 @@ func TestRegister_GracefulDegradation_UnreachableAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Register should NOT return an error — it degrades gracefully.
 	info, err := client.Register(context.Background(), dome.RegisterOptions{
@@ -327,7 +327,7 @@ func TestRegister_GracefulDegradation_EventualSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	info, err := client.Register(context.Background(), dome.RegisterOptions{
 		Name: "eventual-agent",
@@ -363,7 +363,7 @@ func TestRegister_WithoutGracefulDegradation_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	_, err = client.Register(context.Background(), dome.RegisterOptions{
 		Name: "strict-agent",
