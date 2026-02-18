@@ -18,12 +18,13 @@ const (
 
 // clientConfig holds resolved configuration for the SDK client.
 type clientConfig struct {
-	apiURL            string
-	apiKey            string
-	credentials       string
-	heartbeatInterval time.Duration
-	disableHeartbeat  bool
-	logger            *slog.Logger
+	apiURL              string
+	apiKey              string
+	credentials         string
+	heartbeatInterval   time.Duration
+	disableHeartbeat    bool
+	gracefulDegradation bool
+	logger              *slog.Logger
 }
 
 // Option configures the SDK client.
@@ -76,6 +77,15 @@ func WithHeartbeatInterval(d time.Duration) Option {
 func WithoutHeartbeat() Option {
 	return func(c *clientConfig) {
 		c.disableHeartbeat = true
+	}
+}
+
+// WithGracefulDegradation enables background retry on registration failure.
+// When set, Register returns nil error on failure and retries in the background.
+// The agent starts immediately. AgentID returns empty until registration succeeds.
+func WithGracefulDegradation() Option {
+	return func(c *clientConfig) {
+		c.gracefulDegradation = true
 	}
 }
 
