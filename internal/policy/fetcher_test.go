@@ -26,7 +26,7 @@ func TestFetcher_Fetch_Success(t *testing.T) {
 		}
 		w.Header().Set("ETag", `"abc123"`)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(bundle)
+		_ = json.NewEncoder(w).Encode(bundle)
 	}))
 	defer server.Close()
 
@@ -57,7 +57,7 @@ func TestFetcher_Fetch_ETagCaching(t *testing.T) {
 		}
 		bundle := BundleResponse{Version: "v1", Hash: "abc123"}
 		w.Header().Set("ETag", `"abc123"`)
-		json.NewEncoder(w).Encode(bundle)
+		_ = json.NewEncoder(w).Encode(bundle)
 	}))
 	defer server.Close()
 
@@ -112,7 +112,7 @@ func TestSyncer_LoadsBundle(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(bundle)
+		_ = json.NewEncoder(w).Encode(bundle)
 	}))
 	defer server.Close()
 

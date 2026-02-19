@@ -64,7 +64,7 @@ func TestTransport_ExchangeAndInjectBearer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
@@ -112,7 +112,7 @@ func TestTransport_TokenCaching(t *testing.T) {
 		if err != nil {
 			t.Fatalf("request %d error: %v", i+1, err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	if got := atomic.LoadInt32(&exchangeCalls); got != 1 {
@@ -159,7 +159,7 @@ func TestTransport_TokenRefreshOnExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request 1 error: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if got := atomic.LoadInt32(&exchangeCalls); got != 1 {
 		t.Fatalf("exchange calls after request 1 = %d, want 1", got)
@@ -174,7 +174,7 @@ func TestTransport_TokenRefreshOnExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request 2 error: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// At +31s with 60s expiry and 30s buffer, token should be refreshed.
 	if got := atomic.LoadInt32(&exchangeCalls); got != 2 {
@@ -217,7 +217,7 @@ func TestTransport_SkipsExistingAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request error: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if exchangeCalled {
 		t.Error("exchange should not be called when Authorization header is already set")
