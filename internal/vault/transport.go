@@ -37,12 +37,16 @@ type AuthConfig struct {
 	AppSecretID string
 }
 
+// AuthEventFunc is called when an auth event occurs.
+type AuthEventFunc func(eventType string)
+
 // Transport implements http.RoundTripper. It authenticates to Vault,
 // requests an OIDC identity token, and injects it as a Bearer token into
 // every outgoing request. Tokens are cached and refreshed before expiry.
 type Transport struct {
 	base     http.RoundTripper
 	config   AuthConfig
+	onEvent  AuthEventFunc
 	ReadFile func(string) ([]byte, error) // for testability
 
 	Mu         sync.Mutex
@@ -53,7 +57,7 @@ type Transport struct {
 }
 
 // NewTransport creates a new Vault-authenticated HTTP transport.
-func NewTransport(base http.RoundTripper, config AuthConfig) *Transport {
+func NewTransport(base http.RoundTripper, config AuthConfig, onEvent ...AuthEventFunc) *Transport {
 	if base == nil {
 		base = http.DefaultTransport
 	}
@@ -63,9 +67,14 @@ func NewTransport(base http.RoundTripper, config AuthConfig) *Transport {
 	if config.ServiceAccountTokenPath == "" {
 		config.ServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	}
+	var eventFn AuthEventFunc
+	if len(onEvent) > 0 {
+		eventFn = onEvent[0]
+	}
 	return &Transport{
 		base:     base,
 		config:   config,
+		onEvent:  eventFn,
 		ReadFile: os.ReadFile,
 	}
 }
@@ -104,11 +113,17 @@ func (t *Transport) getOIDCToken() (string, error) {
 	// Request OIDC identity token.
 	token, expiry, err := t.requestOIDCToken()
 	if err != nil {
+		if t.onEvent != nil {
+			t.onEvent("agent.auth.failed")
+		}
 		return "", err
 	}
 
 	t.OidcToken = token
 	t.OidcExpiry = expiry
+	if t.onEvent != nil {
+		t.onEvent("agent.auth.token_exchanged")
+	}
 	return token, nil
 }
 

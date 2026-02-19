@@ -31,8 +31,8 @@ func main() {
 	}
 	defer func() { _ = dome.Shutdown(context.Background()) }()
 
-	// Register the agent. Safe to call on every startup (idempotent).
-	agent, err := dome.Register(context.Background(), dome.RegisterOptions{
+	// Start the agent. Safe to call on every startup (idempotent).
+	agent, err := dome.Start(context.Background(), dome.StartOptions{
 		Name:         "basic-example",
 		Description:  "Dome SDK basic example agent",
 		Capabilities: []string{"example"},
@@ -41,10 +41,10 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("dome.Register: %v", err)
+		log.Fatalf("dome.Start: %v", err)
 	}
 
-	log.Printf("Agent registered: %s (ID: %s, Status: %s)", agent.Name, agent.ID, agent.Status)
+	log.Printf("Agent started: %s (ID: %s, Status: %s)", agent.Name, agent.ID, agent.Status)
 	log.Println("Heartbeat is running in the background. Press Ctrl+C to exit.")
 
 	// Wait for interrupt signal.
