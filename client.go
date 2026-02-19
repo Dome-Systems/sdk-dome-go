@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Dome-Systems/sdk-dome-go/internal/api/agentv1connect"
+	"github.com/Dome-Systems/sdk-dome-go/internal/tokenexchange"
 	"github.com/Dome-Systems/sdk-dome-go/internal/vault"
 )
 
@@ -53,8 +54,15 @@ func NewClient(opts ...Option) (*Client, error) {
 		if err != nil {
 			return nil, errorf("decode credentials: %w", err)
 		}
-		if creds != nil && creds.VaultAddr != "" && creds.OIDCRoleName != "" {
-			// Vault-based auth: decode credential blob into vault transport config.
+		if creds != nil && creds.APIURL != "" && creds.AuthMethod == "approle" {
+			// Token exchange via Dome API: agent never talks to Vault.
+			transport = tokenexchange.NewTransport(http.DefaultTransport, tokenexchange.Config{
+				APIURL:   creds.APIURL,
+				RoleID:   creds.RoleID,
+				SecretID: creds.SecretID,
+			})
+		} else if creds != nil && creds.VaultAddr != "" && creds.OIDCRoleName != "" {
+			// Legacy Vault-based auth: direct Vault connectivity required.
 			vaultCfg := vault.AuthConfig{
 				VaultAddr: creds.VaultAddr,
 				OIDCRole:  creds.OIDCRoleName,

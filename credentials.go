@@ -10,6 +10,7 @@ import (
 // This is an internal type — consumers never see it. They pass the opaque
 // base64 token from `dome agents register` and the SDK handles the rest.
 type agentCredentials struct {
+	APIURL       string `json:"api_url,omitempty"`
 	VaultAddr    string `json:"vault_addr"`
 	AuthMethod   string `json:"auth_method"`
 	RoleID       string `json:"role_id,omitempty"`
@@ -42,8 +43,8 @@ func decodeToken(token string) (*agentCredentials, error) {
 	}
 
 	// If we decoded valid JSON but it doesn't look like credentials
-	// (no vault_addr), treat as a plain token.
-	if creds.VaultAddr == "" {
+	// (no api_url and no vault_addr), treat as a plain token.
+	if creds.APIURL == "" && creds.VaultAddr == "" {
 		return nil, nil
 	}
 
