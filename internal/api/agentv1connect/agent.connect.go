@@ -49,6 +49,9 @@ const (
 	AgentRegistryRevokeAgentProcedure = "/dome.agent.v1.AgentRegistry/RevokeAgent"
 	// AgentRegistryHeartbeatProcedure is the fully-qualified name of the AgentRegistry's Heartbeat RPC.
 	AgentRegistryHeartbeatProcedure = "/dome.agent.v1.AgentRegistry/Heartbeat"
+	// AgentRegistryReportEventProcedure is the fully-qualified name of the AgentRegistry's ReportEvent
+	// RPC.
+	AgentRegistryReportEventProcedure = "/dome.agent.v1.AgentRegistry/ReportEvent"
 	// AgentRegistryWatchAgentsProcedure is the fully-qualified name of the AgentRegistry's WatchAgents
 	// RPC.
 	AgentRegistryWatchAgentsProcedure = "/dome.agent.v1.AgentRegistry/WatchAgents"
@@ -62,6 +65,7 @@ type AgentRegistryClient interface {
 	UpdateAgent(context.Context, *connect.Request[api.UpdateAgentRequest]) (*connect.Response[api.UpdateAgentResponse], error)
 	RevokeAgent(context.Context, *connect.Request[api.RevokeAgentRequest]) (*connect.Response[api.RevokeAgentResponse], error)
 	Heartbeat(context.Context, *connect.Request[api.HeartbeatRequest]) (*connect.Response[api.HeartbeatResponse], error)
+	ReportEvent(context.Context, *connect.Request[api.ReportEventRequest]) (*connect.Response[api.ReportEventResponse], error)
 	WatchAgents(context.Context, *connect.Request[api.WatchAgentsRequest]) (*connect.ServerStreamForClient[api.AgentEvent], error)
 }
 
@@ -112,6 +116,12 @@ func NewAgentRegistryClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(agentRegistryMethods.ByName("Heartbeat")),
 			connect.WithClientOptions(opts...),
 		),
+		reportEvent: connect.NewClient[api.ReportEventRequest, api.ReportEventResponse](
+			httpClient,
+			baseURL+AgentRegistryReportEventProcedure,
+			connect.WithSchema(agentRegistryMethods.ByName("ReportEvent")),
+			connect.WithClientOptions(opts...),
+		),
 		watchAgents: connect.NewClient[api.WatchAgentsRequest, api.AgentEvent](
 			httpClient,
 			baseURL+AgentRegistryWatchAgentsProcedure,
@@ -129,6 +139,7 @@ type agentRegistryClient struct {
 	updateAgent   *connect.Client[api.UpdateAgentRequest, api.UpdateAgentResponse]
 	revokeAgent   *connect.Client[api.RevokeAgentRequest, api.RevokeAgentResponse]
 	heartbeat     *connect.Client[api.HeartbeatRequest, api.HeartbeatResponse]
+	reportEvent   *connect.Client[api.ReportEventRequest, api.ReportEventResponse]
 	watchAgents   *connect.Client[api.WatchAgentsRequest, api.AgentEvent]
 }
 
@@ -162,6 +173,11 @@ func (c *agentRegistryClient) Heartbeat(ctx context.Context, req *connect.Reques
 	return c.heartbeat.CallUnary(ctx, req)
 }
 
+// ReportEvent calls dome.agent.v1.AgentRegistry.ReportEvent.
+func (c *agentRegistryClient) ReportEvent(ctx context.Context, req *connect.Request[api.ReportEventRequest]) (*connect.Response[api.ReportEventResponse], error) {
+	return c.reportEvent.CallUnary(ctx, req)
+}
+
 // WatchAgents calls dome.agent.v1.AgentRegistry.WatchAgents.
 func (c *agentRegistryClient) WatchAgents(ctx context.Context, req *connect.Request[api.WatchAgentsRequest]) (*connect.ServerStreamForClient[api.AgentEvent], error) {
 	return c.watchAgents.CallServerStream(ctx, req)
@@ -175,6 +191,7 @@ type AgentRegistryHandler interface {
 	UpdateAgent(context.Context, *connect.Request[api.UpdateAgentRequest]) (*connect.Response[api.UpdateAgentResponse], error)
 	RevokeAgent(context.Context, *connect.Request[api.RevokeAgentRequest]) (*connect.Response[api.RevokeAgentResponse], error)
 	Heartbeat(context.Context, *connect.Request[api.HeartbeatRequest]) (*connect.Response[api.HeartbeatResponse], error)
+	ReportEvent(context.Context, *connect.Request[api.ReportEventRequest]) (*connect.Response[api.ReportEventResponse], error)
 	WatchAgents(context.Context, *connect.Request[api.WatchAgentsRequest], *connect.ServerStream[api.AgentEvent]) error
 }
 
@@ -221,6 +238,12 @@ func NewAgentRegistryHandler(svc AgentRegistryHandler, opts ...connect.HandlerOp
 		connect.WithSchema(agentRegistryMethods.ByName("Heartbeat")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentRegistryReportEventHandler := connect.NewUnaryHandler(
+		AgentRegistryReportEventProcedure,
+		svc.ReportEvent,
+		connect.WithSchema(agentRegistryMethods.ByName("ReportEvent")),
+		connect.WithHandlerOptions(opts...),
+	)
 	agentRegistryWatchAgentsHandler := connect.NewServerStreamHandler(
 		AgentRegistryWatchAgentsProcedure,
 		svc.WatchAgents,
@@ -241,6 +264,8 @@ func NewAgentRegistryHandler(svc AgentRegistryHandler, opts ...connect.HandlerOp
 			agentRegistryRevokeAgentHandler.ServeHTTP(w, r)
 		case AgentRegistryHeartbeatProcedure:
 			agentRegistryHeartbeatHandler.ServeHTTP(w, r)
+		case AgentRegistryReportEventProcedure:
+			agentRegistryReportEventHandler.ServeHTTP(w, r)
 		case AgentRegistryWatchAgentsProcedure:
 			agentRegistryWatchAgentsHandler.ServeHTTP(w, r)
 		default:
@@ -274,6 +299,10 @@ func (UnimplementedAgentRegistryHandler) RevokeAgent(context.Context, *connect.R
 
 func (UnimplementedAgentRegistryHandler) Heartbeat(context.Context, *connect.Request[api.HeartbeatRequest]) (*connect.Response[api.HeartbeatResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dome.agent.v1.AgentRegistry.Heartbeat is not implemented"))
+}
+
+func (UnimplementedAgentRegistryHandler) ReportEvent(context.Context, *connect.Request[api.ReportEventRequest]) (*connect.Response[api.ReportEventResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dome.agent.v1.AgentRegistry.ReportEvent is not implemented"))
 }
 
 func (UnimplementedAgentRegistryHandler) WatchAgents(context.Context, *connect.Request[api.WatchAgentsRequest], *connect.ServerStream[api.AgentEvent]) error {

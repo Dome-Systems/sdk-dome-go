@@ -1,6 +1,7 @@
 package dome
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -119,6 +120,11 @@ func (c *Client) Close() error {
 	defer c.mu.Unlock()
 
 	if c.cancel != nil {
+		// Emit agent.stopped before canceling the heartbeat context.
+		// Use c.agentID directly since we already hold c.mu.
+		if c.agentID != "" {
+			c.reportEventForAgent(context.Background(), c.agentID, "agent.stopped")
+		}
 		c.cancel()
 		<-c.stopped
 		c.cancel = nil

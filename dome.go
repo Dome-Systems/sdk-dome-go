@@ -9,7 +9,7 @@
 //	dome.Init(dome.WithCredentials(os.Getenv("DOME_AGENT_TOKEN")))
 //	defer dome.Shutdown(context.Background())
 //
-//	agent, err := dome.Register(ctx, dome.RegisterOptions{
+//	agent, err := dome.Start(ctx, dome.StartOptions{
 //	    Name: "my-agent",
 //	})
 //
@@ -21,7 +21,7 @@
 //	)
 //	defer client.Close()
 //
-//	agent, err := client.Register(ctx, dome.RegisterOptions{
+//	agent, err := client.Start(ctx, dome.StartOptions{
 //	    Name: "my-agent",
 //	})
 package dome
@@ -59,14 +59,21 @@ func Init(opts ...Option) error {
 	return nil
 }
 
-// Register registers an agent using the global client.
-// Init must be called before Register.
-func Register(ctx context.Context, opts RegisterOptions) (*AgentInfo, error) {
+// Start announces the agent to the Dome control plane using the global client.
+// Init must be called before Start.
+func Start(ctx context.Context, opts StartOptions) (*AgentInfo, error) {
 	c, err := getGlobalClient()
 	if err != nil {
 		return nil, err
 	}
-	return c.Register(ctx, opts)
+	return c.Start(ctx, opts)
+}
+
+// Register is a deprecated alias for Start.
+//
+// Deprecated: renamed to Start in v0.3.0.
+func Register(ctx context.Context, opts RegisterOptions) (*AgentInfo, error) {
+	return Start(ctx, opts)
 }
 
 // Check evaluates a policy decision using the global client.

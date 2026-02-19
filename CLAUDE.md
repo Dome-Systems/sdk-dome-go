@@ -22,7 +22,7 @@ import "github.com/Dome-Systems/sdk-dome-go"
 dome.Init(dome.WithCredentials(os.Getenv("DOME_AGENT_TOKEN")))
 defer dome.Shutdown(context.Background())
 
-agent, err := dome.Register(ctx, dome.RegisterOptions{Name: "my-agent"})
+agent, err := dome.Start(ctx, dome.StartOptions{Name: "my-agent"})
 ```
 
 ## Rules

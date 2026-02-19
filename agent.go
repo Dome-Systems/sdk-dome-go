@@ -24,8 +24,13 @@ type AgentInfo struct {
 	Token        string
 }
 
-// RegisterOptions configures agent registration.
-type RegisterOptions struct {
+// StartOptions configures the agent announcement to the control plane.
+//
+// Deprecated: RegisterOptions was renamed to StartOptions in v0.3.0.
+type RegisterOptions = StartOptions
+
+// StartOptions configures the agent announcement to the control plane.
+type StartOptions struct {
 	Name         string
 	Description  string
 	ParentID     string
@@ -33,20 +38,22 @@ type RegisterOptions struct {
 	Metadata     map[string]string
 }
 
-// Register registers an agent with the Dome control plane.
+// Start announces the agent to the Dome control plane and begins background
+// heartbeat. The agent must already be registered via `dome agents register`
+// (CLI) — Start announces it as online, not creates the identity.
 //
-// If an agent with the same name already exists (CodeAlreadyExists), Register
-// finds the existing agent and returns its info. This makes Register idempotent
+// If an agent with the same name already exists (CodeAlreadyExists), Start
+// finds the existing agent and returns its info. This makes Start idempotent
 // and safe to call on every startup.
 //
-// On success, Register starts a background heartbeat goroutine (unless
+// On success, Start begins a background heartbeat goroutine (unless
 // WithoutHeartbeat was used).
 //
-// If WithGracefulDegradation was set and registration fails (e.g. API
-// unreachable), Register logs a warning and retries in the background instead
+// If WithGracefulDegradation was set and the call fails (e.g. API
+// unreachable), Start logs a warning and retries in the background instead
 // of returning an error. AgentID returns empty until background registration
 // succeeds.
-func (c *Client) Register(ctx context.Context, opts RegisterOptions) (*AgentInfo, error) {
+func (c *Client) Start(ctx context.Context, opts StartOptions) (*AgentInfo, error) {
 	if opts.Name == "" {
 		return nil, errorf("agent name is required")
 	}
@@ -66,11 +73,21 @@ func (c *Client) Register(ctx context.Context, opts RegisterOptions) (*AgentInfo
 
 	c.setAgentID(info.ID)
 
+	// Emit agent.started event (fire-and-forget).
+	c.reportEvent(ctx, "agent.started")
+
 	if !c.config.disableHeartbeat {
 		c.startHeartbeat(info.ID)
 	}
 
 	return info, nil
+}
+
+// Register is a deprecated alias for Start. Use Start instead.
+//
+// Deprecated: renamed to Start in v0.3.0.
+func (c *Client) Register(ctx context.Context, opts StartOptions) (*AgentInfo, error) {
+	return c.Start(ctx, opts)
 }
 
 // doRegister performs the actual registration RPC call with idempotency handling.
