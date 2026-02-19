@@ -24,12 +24,16 @@ type Config struct {
 	SecretID string
 }
 
+// AuthEventFunc is called when an auth event occurs.
+type AuthEventFunc func(eventType string)
+
 // Transport implements http.RoundTripper. It exchanges AppRole credentials
 // for a JWT via the Dome API server, caches the JWT, and injects it as a
 // Bearer token into every outgoing request.
 type Transport struct {
-	base   http.RoundTripper
-	config Config
+	base    http.RoundTripper
+	config  Config
+	onEvent AuthEventFunc
 
 	mu      sync.Mutex
 	token   string
@@ -38,13 +42,18 @@ type Transport struct {
 }
 
 // NewTransport creates a new token-exchange HTTP transport.
-func NewTransport(base http.RoundTripper, config Config) *Transport {
+func NewTransport(base http.RoundTripper, config Config, onEvent ...AuthEventFunc) *Transport {
 	if base == nil {
 		base = http.DefaultTransport
+	}
+	var eventFn AuthEventFunc
+	if len(onEvent) > 0 {
+		eventFn = onEvent[0]
 	}
 	return &Transport{
 		base:    base,
 		config:  config,
+		onEvent: eventFn,
 		nowFunc: time.Now,
 	}
 }
@@ -91,11 +100,17 @@ func (t *Transport) getToken() (string, error) {
 	// Exchange credentials for a new JWT.
 	token, expiresIn, err := t.exchange()
 	if err != nil {
+		if t.onEvent != nil {
+			t.onEvent("agent.auth.failed")
+		}
 		return "", err
 	}
 
 	t.token = token
 	t.expiry = now.Add(time.Duration(expiresIn) * time.Second)
+	if t.onEvent != nil {
+		t.onEvent("agent.auth.token_exchanged")
+	}
 	return token, nil
 }
 

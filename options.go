@@ -14,6 +14,10 @@ const (
 	// This is half the server deadline (60s) to give one retry before
 	// the agent appears stale.
 	DefaultHeartbeatInterval = 30 * time.Second
+
+	// DefaultPolicyRefreshInterval is how often the SDK fetches the policy
+	// bundle from the control plane.
+	DefaultPolicyRefreshInterval = 5 * time.Minute
 )
 
 // clientConfig holds resolved configuration for the SDK client.
@@ -24,6 +28,8 @@ type clientConfig struct {
 	heartbeatInterval   time.Duration
 	disableHeartbeat    bool
 	gracefulDegradation bool
+	policyRefresh       time.Duration
+	disablePolicy       bool
 	logger              *slog.Logger
 }
 
@@ -96,10 +102,26 @@ func WithLogger(l *slog.Logger) Option {
 	}
 }
 
+// WithPolicyRefresh sets the policy bundle refresh interval.
+// Default: 5 minutes. Set to 0 to disable periodic refresh (manual only).
+func WithPolicyRefresh(d time.Duration) Option {
+	return func(c *clientConfig) {
+		c.policyRefresh = d
+	}
+}
+
+// WithoutPolicy disables policy evaluation. Check() always returns allowed.
+func WithoutPolicy() Option {
+	return func(c *clientConfig) {
+		c.disablePolicy = true
+	}
+}
+
 func defaultConfig() clientConfig {
 	return clientConfig{
 		apiURL:            DefaultAPIURL,
 		heartbeatInterval: DefaultHeartbeatInterval,
+		policyRefresh:     DefaultPolicyRefreshInterval,
 		logger:            slog.Default(),
 	}
 }

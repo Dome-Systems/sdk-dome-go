@@ -7,6 +7,7 @@ import (
 	"connectrpc.com/connect"
 
 	apiv1 "github.com/Dome-Systems/sdk-dome-go/internal/api"
+	"github.com/Dome-Systems/sdk-dome-go/internal/policy"
 )
 
 const (
@@ -72,6 +73,26 @@ func (c *Client) Start(ctx context.Context, opts StartOptions) (*AgentInfo, erro
 	}
 
 	c.setAgentID(info.ID)
+
+	// Cache agent context for Cedar evaluation and flush pending auth events.
+	c.mu.Lock()
+	c.agentCtx = policy.AgentContext{
+		ID:           info.ID,
+		Capabilities: info.Capabilities,
+	}
+	pendingEvents := c.pendingAuthEvents
+	c.pendingAuthEvents = nil
+	c.mu.Unlock()
+
+	// Emit any auth events that were queued before the agent ID was set.
+	for _, eventType := range pendingEvents {
+		c.reportEvent(context.Background(), eventType)
+	}
+
+	// Start policy syncer (fetches Cedar bundle from control plane).
+	if !c.config.disablePolicy {
+		c.startPolicySyncer()
+	}
 
 	// Emit agent.started event (fire-and-forget).
 	c.reportEvent(ctx, "agent.started")

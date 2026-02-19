@@ -10,22 +10,33 @@ import (
 	"sync"
 
 	"github.com/Dome-Systems/sdk-dome-go/internal/api/agentv1connect"
+	"github.com/Dome-Systems/sdk-dome-go/internal/policy"
 	"github.com/Dome-Systems/sdk-dome-go/internal/tokenexchange"
 	"github.com/Dome-Systems/sdk-dome-go/internal/vault"
 )
 
-// Client is the Dome SDK client. It handles agent registration and
-// background heartbeat. Use NewClient to create one, or use the global
-// Init/Register/Shutdown functions.
+// Client is the Dome SDK client. It handles agent registration, heartbeat,
+// and Cedar policy evaluation. Use NewClient to create one, or use the
+// global Init/Start/Shutdown functions.
 type Client struct {
-	rpc    agentv1connect.AgentRegistryClient
-	config clientConfig
-	logger *slog.Logger
+	rpc        agentv1connect.AgentRegistryClient
+	httpClient *http.Client // used for policy bundle fetch
+	config     clientConfig
+	logger     *slog.Logger
 
-	mu      sync.Mutex
-	agentID string
-	cancel  func()
-	stopped chan struct{}
+	mu       sync.Mutex
+	agentID  string
+	tenantID string
+	cancel   func()
+	stopped  chan struct{}
+
+	// Policy evaluation.
+	policyEngine *policy.Engine
+	policySyncer *policy.Syncer
+	agentCtx     policy.AgentContext // cached agent context for Cedar evaluation
+
+	// Auth events queued before Start() sets the agent ID.
+	pendingAuthEvents []string
 }
 
 // NewClient creates a new Dome SDK client.
@@ -40,6 +51,26 @@ func NewClient(opts ...Option) (*Client, error) {
 	cfg := defaultConfig()
 	for _, o := range opts {
 		o(&cfg)
+	}
+
+	// Create the client early so the auth callback can queue events.
+	c := &Client{
+		config:       cfg,
+		logger:       cfg.logger,
+		policyEngine: policy.NewEngine(),
+	}
+
+	// Auth event callback — queues events until Start() sets the agent ID.
+	authCallback := func(eventType string) {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.agentID != "" {
+			// Agent ID is set — emit directly.
+			go c.reportEventForAgent(context.Background(), c.agentID, eventType)
+		} else {
+			// Queue for emission after Start().
+			c.pendingAuthEvents = append(c.pendingAuthEvents, eventType)
+		}
 	}
 
 	var transport http.RoundTripper
@@ -61,7 +92,7 @@ func NewClient(opts ...Option) (*Client, error) {
 				APIURL:   creds.APIURL,
 				RoleID:   creds.RoleID,
 				SecretID: creds.SecretID,
-			})
+			}, authCallback)
 		} else if creds != nil && creds.VaultAddr != "" && creds.OIDCRoleName != "" {
 			// Legacy Vault-based auth: direct Vault connectivity required.
 			vaultCfg := vault.AuthConfig{
@@ -81,7 +112,7 @@ func NewClient(opts ...Option) (*Client, error) {
 				vaultCfg.AppRoleID = creds.RoleID
 				vaultCfg.AppSecretID = creds.SecretID
 			}
-			transport = vault.NewTransport(http.DefaultTransport, vaultCfg)
+			transport = vault.NewTransport(http.DefaultTransport, vaultCfg, authCallback)
 		} else if creds != nil {
 			// Credential blob present but no Vault OIDC — use raw token as bearer.
 			transport = &bearerTransport{base: http.DefaultTransport, token: credToken}
@@ -104,20 +135,23 @@ func NewClient(opts ...Option) (*Client, error) {
 	}
 
 	httpClient := &http.Client{Transport: transport}
-	rpc := agentv1connect.NewAgentRegistryClient(httpClient, cfg.apiURL)
+	c.rpc = agentv1connect.NewAgentRegistryClient(httpClient, cfg.apiURL)
+	c.httpClient = httpClient
 
-	return &Client{
-		rpc:    rpc,
-		config: cfg,
-		logger: cfg.logger,
-	}, nil
+	return c, nil
 }
 
-// Close stops the background heartbeat goroutine and releases resources.
-// It is safe to call Close multiple times.
+// Close stops the background heartbeat goroutine, policy syncer, and releases
+// resources. It is safe to call Close multiple times.
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// Stop policy syncer.
+	if c.policySyncer != nil {
+		c.policySyncer.Stop()
+		c.policySyncer = nil
+	}
 
 	if c.cancel != nil {
 		// Emit agent.stopped before canceling the heartbeat context.
@@ -130,6 +164,22 @@ func (c *Client) Close() error {
 		c.cancel = nil
 	}
 	return nil
+}
+
+// startPolicySyncer begins periodic policy bundle sync from the control plane.
+func (c *Client) startPolicySyncer() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Use the same tenant ID from the agent's context (extracted from auth).
+	// The fetcher sends X-Tenant-ID header — the server extracts it from the
+	// auth token, so we can use a placeholder. The HTTP client already carries
+	// the auth transport.
+	fetcher := policy.NewFetcher(c.httpClient, c.config.apiURL, c.tenantID)
+	c.policySyncer = policy.NewSyncer(fetcher, c.policyEngine, c.config.policyRefresh, func(msg string, args ...any) {
+		c.logger.Debug(msg, args...)
+	})
+	c.policySyncer.Start()
 }
 
 // AgentID returns the registered agent's ID, or empty if not yet registered.
