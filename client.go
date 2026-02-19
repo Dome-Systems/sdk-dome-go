@@ -86,6 +86,10 @@ func NewClient(opts ...Option) (*Client, error) {
 		if err != nil {
 			return nil, errorf("decode credentials: %w", err)
 		}
+		// Use API URL from credential blob if not explicitly overridden.
+		if creds != nil && creds.APIURL != "" && cfg.apiURL == DefaultAPIURL {
+			cfg.apiURL = creds.APIURL
+		}
 		if creds != nil && creds.APIURL != "" && creds.AuthMethod == "approle" {
 			// Token exchange via Dome API: agent never talks to Vault.
 			transport = tokenexchange.NewTransport(http.DefaultTransport, tokenexchange.Config{
