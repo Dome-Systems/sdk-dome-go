@@ -68,6 +68,10 @@ func (h *mockHandler) Heartbeat(_ context.Context, _ *connect.Request[apiv1.Hear
 	return connect.NewResponse(&apiv1.HeartbeatResponse{}), nil
 }
 
+func (h *mockHandler) ReportEvent(_ context.Context, _ *connect.Request[apiv1.ReportEventRequest]) (*connect.Response[apiv1.ReportEventResponse], error) {
+	return connect.NewResponse(&apiv1.ReportEventResponse{}), nil
+}
+
 // testServer creates a test HTTP server backed by a mock handler.
 func testServer(t *testing.T) string {
 	t.Helper()
