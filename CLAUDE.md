@@ -29,6 +29,7 @@ agent, err := dome.Start(ctx, dome.StartOptions{Name: "my-agent"})
 
 - `.claude/rules/terminology.md` — Locked product terms
 - `.claude/rules/sdk-design.md` — SDK design rules (public API, dependencies, errors)
+- `.claude/rules/work-process.md` — Work process rules (quality over speed, diagnose first, branch+PR)
 
 ## Skills
 
